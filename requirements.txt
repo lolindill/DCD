@@ -1,0 +1,18 @@
+asgiref>=3.7.2
+Django>=5.0.1
+django-cors-headers>=4.3.1
+djangorestframework>=3.14.0
+docx>=0.2.4
+pandas>=2.2.0
+pytz>=2024.1
+python-docx>=1.0.1
+python-comtypes>=1.2.0
+pywin32>=306  # This is for win32com
+
+asgiref==3.8.1
+Django==4.2.16
+django-cors-headers==4.6.0
+djangorestframework==3.15.2
+pandas==2.2.1
+python-docx==1.1.2
+pytz==2024.1
