@@ -17,7 +17,6 @@ from docx.oxml.ns import nsdecls
 import zipfile
 from django.views.decorators.csrf import csrf_exempt
 from corsheaders.defaults import default_headers
-import aspose.words as aw
 import win32com.client
 import pythoncom
 from django.shortcuts import render
@@ -115,13 +114,10 @@ def get_select_report(request):
             doc1.save(doc1_buffer)
             doc1_buffer.seek(0)
             zip_file.writestr('report1.docx', doc1_buffer.getvalue())    
-            pdf1 = docx_to_pdf2(doc1_buffer)
-            zip_file.writestr('pdf1.pdf', pdf1.getvalue())
             doc2_buffer = BytesIO()
             doc2.save(doc2_buffer)
             doc2_buffer.seek(0)
-            pdf2 = docx_to_pdf2(doc2_buffer)
-            zip_file.writestr('pdf2.pdf', pdf2.getvalue())
+            zip_file.writestr('doc2.doc', doc2_buffer.getvalue())
             
         zip_buffer.seek(0)
         response = HttpResponse(
@@ -519,42 +515,6 @@ def get_month_in_thai(month):
     if 1 <= month <= 12:
         return thai_months[month - 1]
     
-def docx_to_pdf(docx_buffer):
-    doc = aw.Document(docx_buffer)
-    pdf_buffer = BytesIO()
-    doc.save(pdf_buffer, aw.SaveFormat.PDF)
-    pdf_buffer.seek(0)
-    return pdf_buffer
-def docx_to_pdf2(docx_buffer):
-    # Initialize COM in this thread
-    pythoncom.CoInitialize()
-    
-    try:
-        # Create Word application object
-        word = win32com.client.Dispatch("Word.Application")
-        word.Visible = False
-        
-        # Create a temporary BytesIO for the PDF
-        pdf_buffer = BytesIO()
-        
-        # Load the document from memory
-        doc = word.Documents.Add()
-        doc.Range().InsertFile(docx_buffer)
-        
-        # Save as PDF to memory stream
-        doc.SaveAs2(pdf_buffer, FileFormat=17)  # 17 represents PDF format
-        
-        # Close document and quit Word
-        doc.Close()
-        word.Quit()
-        
-        pdf_buffer.seek(0)
-        return pdf_buffer
-        
-    finally:
-        # Clean up COM
-        pythoncom.CoUninitialize()
-
 
 def get_dum_pd():
     columns = ['รายละเอียดตามข้อกำหนด', 'รายละเอียดที่พิจารณา', 'ผลพิจารณา']
