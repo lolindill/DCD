@@ -17,8 +17,6 @@ from docx.oxml.ns import nsdecls
 import zipfile
 from django.views.decorators.csrf import csrf_exempt
 from corsheaders.defaults import default_headers
-import win32com.client
-import pythoncom
 from django.shortcuts import render
 from django.conf import settings
 import os
