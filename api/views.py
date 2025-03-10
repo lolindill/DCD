@@ -1,8 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Report , DocumentFormat, Paragraph, Text, Section,Image,ProductReport
-from .serializers import ReportSerializer , DocumentFormatSerializer , ProductReportSerializer ,SectionSerializer,ImageSerializer 
+from .models import Report , DocumentFormat, Paragraph, Text, Section,Image,ProductReport,ShopDrawReport
+from .serializers import ReportSerializer , DocumentFormatSerializer , ProductReportSerializer ,SectionSerializer,ImageSerializer ,ShopDrawReportSerializer
 from django.contrib.auth.models import User , Group
 from rest_framework.authtoken.models import Token
 from django.http import HttpResponse 
@@ -19,11 +19,14 @@ from django.views.decorators.csrf import csrf_exempt
 from corsheaders.defaults import default_headers
 from django.shortcuts import render
 from django.conf import settings
+from docx2pdf import convert
+import tempfile
 import os
+import pythoncom
 
 
-SL_TYPEMAP = {"ผลิตภัณฑ์": ProductReportSerializer}
-TYPEMAP = {"ผลิตภัณฑ์": ProductReport}
+SL_TYPEMAP = {"ผลิตภัณฑ์": ProductReportSerializer , "SHOP DRAWING": ShopDrawReportSerializer}
+TYPEMAP = {"ผลิตภัณฑ์": ProductReport , "SHOP DRAWING": ShopDrawReport}
 
 def index(request):
     # Directly render the index.html from the build directory
@@ -56,75 +59,122 @@ def login(request):
     else:
         return Response({"error": "User does not exist."}, status=404)
 
+def gen_download_report(json_data):
+    doc1 , doc2 = get_doc(json_data)
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        doc1_buffer = BytesIO()
+        doc1.save(doc1_buffer)
+        doc1_buffer.seek(0)
+        zip_file.writestr('report1.docx', doc1_buffer.getvalue())    
+        pdf1_buffer = convert_docx_to_pdf(doc1_buffer)
+        zip_file.writestr('report1.pdf', pdf1_buffer.getvalue())   
+        doc2_buffer = BytesIO()
+        doc2.save(doc2_buffer)
+        doc2_buffer.seek(0)
+        zip_file.writestr('doc2.doc', doc2_buffer.getvalue())
+        pdf2_buffer = convert_docx_to_pdf(doc2_buffer)
+        zip_file.writestr('report2.pdf', pdf2_buffer.getvalue()) 
+        
+    zip_buffer.seek(0)
+    return zip_buffer
+    
 @api_view(['POST'])
 @csrf_exempt
 def create_report(request):
-    json_data = request.data
+    json_data = request.data['report']
+    isDownload = request.data['download']
+    token = Token.objects.get(key=request.data['userToken'])
     type = json_data['type']
     serializer = SL_TYPEMAP[type](data=json_data)
     if serializer.is_valid():
-        serializer.save()
-        doc1 , doc2 = get_doc(json_data)
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            doc1_buffer = BytesIO()
-            doc1.save(doc1_buffer)
-            doc1_buffer.seek(0)
-            zip_file.writestr('report1.docx', doc1_buffer.read())
-            
-            doc2_buffer = BytesIO()
-            doc2.save(doc2_buffer)
-            doc2_buffer.seek(0)
-            zip_file.writestr('report2.docx', doc2_buffer.read())
-        
-        zip_buffer.seek(0)
-        response = HttpResponse(
-            zip_buffer,
-            content_type='application/application/zip'
-        )
-        response['Content-Disposition'] = 'attachment; filename="report.docx"'
-
-        return response
+        serializer.save(create_by = token.user)
+        if(isDownload):  
+            zip_buffer = gen_download_report(json_data)
+            response = HttpResponse(
+                zip_buffer,
+                content_type='application/zip'
+            )
+            response['Content-Disposition'] = 'attachment; filename="report.zip"'
+            return response
+           
+        else:
+            return Response(serializer.data, status=status.HTTP_200_OK)
     else:
         print(serializer.error_messages)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 @api_view(['GET'])
 @csrf_exempt
 def get_all_report(request):
-    # Retrieve all requisitions
+    token = request.query_params.get('token')
     report = Report.objects.all()
     serializer = ReportSerializer(report, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    data_to_send = serializer.data
+    creater = Token.objects.get(key=token).user.username
+    for report in data_to_send:
+        if('create_by' in report.keys()):
+            if(report['create_by'] == creater):
+                report['isCreate'] = True
+            else:
+                report['isCreate'] = False
+    return Response(data_to_send, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @csrf_exempt
 def get_select_report(request):
+    type = request.query_params.get('type')
+    id = request.query_params.get('id')
+    report = TYPEMAP[type].objects.get(id = id)
+    serializer = SL_TYPEMAP[type](report)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@csrf_exempt
+def dowload_select_report(request):
     try:
         type = request.query_params.get('type')
         id = request.query_params.get('id')
         report = TYPEMAP[type].objects.get(id = id)
         serializer = SL_TYPEMAP[type](report)
-        
-        doc1 , doc2 = get_doc(serializer.data)
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            doc1_buffer = BytesIO()
-            doc1.save(doc1_buffer)
-            doc1_buffer.seek(0)
-            zip_file.writestr('report1.docx', doc1_buffer.getvalue())    
-            doc2_buffer = BytesIO()
-            doc2.save(doc2_buffer)
-            doc2_buffer.seek(0)
-            zip_file.writestr('doc2.doc', doc2_buffer.getvalue())
-            
-        zip_buffer.seek(0)
+        zip_buffer = gen_download_report(serializer.data)
         response = HttpResponse(
-                zip_buffer,
-                content_type='application/application/zip'
-            )
-        response['Content-Disposition'] = 'attachment; filename="report.docx"'
-
+            zip_buffer,
+            content_type='application/zip'
+        )
+        response['Content-Disposition'] = 'attachment; filename="report.zip"'
         return response
+    except Exception as e:
+        print(e)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['POST'])
+@csrf_exempt
+def update_select_report(request):
+    try:
+        
+        json_data = request.data['report']
+        isDownload = request.data['download']
+        type = request.data['type']
+        id = request.data['id']
+        report = TYPEMAP[type].objects.get(id=id)  
+        for key, value in json_data.items():
+            setattr(report, key, value)
+
+# Save the changes to the database
+        report.save()
+        serializer = SL_TYPEMAP[type](report)
+        if(isDownload):
+            zip_buffer = BytesIO()
+            zip_buffer = gen_download_report(serializer.data)
+            response = HttpResponse(
+                zip_buffer,
+                content_type='application/zip'
+            )
+            response['Content-Disposition'] = 'attachment; filename="report.zip"'
+            return response
+        else:
+            return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -176,8 +226,75 @@ def user_update_role(request):
         return Response(status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET'])
+@csrf_exempt
+def get_all_format(request):
+    try:
+        formats = DocumentFormat.objects.all()
+        formats_json = serialize('json', formats )
+        return Response(formats_json , status=status.HTTP_200_OK)
+    except Exception as e:
+        print(e)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['POST'])
+@csrf_exempt
+def update_format(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        try:
+            name = request.POST.get("itemName")
+            DocumentFormat.objects.filter(name = name).delete()
+            return add_form(request._request)
+        except Report.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET'])
+@csrf_exempt
+def dowload_select_format(request):
+    try:
+        name = request.query_params.get('name')
+        select  = DocumentFormat.objects.filter(name = name).first()
 
+        if select.name == 'product':
+            doc = print_product_report()
+        elif select.name == 'ShopDrawResult':
+           doc = print_shop_draw_result()
+        else:
+            doc = Document()
+            create_doc_section(doc, Section.objects.first(),False)
+            if select.name == 'product_result_head':
+                head = DocumentFormat.objects.filter(name = 'product_result_head').first()
+                for paragraph_data in head.paragraphs.all():
+                    create_doc_paragraph(doc, paragraph_data,True)
+            if select.name == 'product_result_fristPara':
+                fristPara = DocumentFormat.objects.filter(name = 'product_result_fristPara').first()
+                for paragraph_data in fristPara.paragraphs.all():
+                    create_doc_paragraph(doc, paragraph_data,True)
+            if select.name == 'product_result_tail':
+                tail = DocumentFormat.objects.filter(name = 'product_result_tail').first()
+                for paragraph_data in tail.paragraphs.all():
+                    create_doc_paragraph(doc, paragraph_data,True)
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
 
+        # Create a response with the buffer content
+        response = HttpResponse(
+            buffer,
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = 'attachment; filename=".docx"'
+        return response
+    except Exception as e:
+        print(e)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    
+      
+      
+    
 '''
 @api_view(['GET'])
 @csrf_exempt
@@ -235,9 +352,10 @@ def add_section(request):
 def add_form(request):
     if request.method == 'POST' and request.FILES.get('file'):
         file = request.FILES['file']
+        item_name = request.POST.get('itemName')
         try:
             doc = Document(file)
-            newForm = DocumentFormat.objects.create(name="product_result_fristPara")
+            newForm = DocumentFormat.objects.create(name=item_name )
             for para in doc.paragraphs:  
                 paragraph = create_para(para,newForm)
                 for run in para.runs: 
@@ -301,6 +419,7 @@ def create_doc_paragraph(doc, paragraph_data,newline = False):
         paragraph = doc.add_paragraph()
     else:
         paragraph = doc.paragraphs[len(doc.paragraphs)-1]
+    paragraph.style = doc.styles['Normal']
     for run_data in paragraph_data.texts.all():
         run = paragraph.add_run(run_data.content)
         if run_data.bold:
@@ -360,6 +479,7 @@ def create_doc_table(doc,pandas):
         table.columns[i].width = Inches(column_width_percent / 10)
         hdr_cells[i].text = column
         for para in hdr_cells[i].paragraphs:
+                para.style = doc.styles['Normal']
                 para.paragraph_format.alignment = 1
                 para.paragraph_format.space_before = Pt(6)
                 para.paragraph_format.space_after = Pt(6)
@@ -406,18 +526,34 @@ def split_dataframe(df):
         if i > 0:
             line += 1
         temp_df.append(df.iloc[i])
+        
         if line > (20 if not result_dfs else 32):
             result_dfs.append(pd.DataFrame(temp_df))
             temp_df = []  # Reset the temporary DataFrame
             line = 0  # Reset the line counter
-    if temp_df:
-        result_dfs.append(pd.DataFrame(temp_df))
+
+        # If it's the last element, check if temp_df needs further splitting
+        if i == len(df) - 1 and temp_df:
+            last_line = 0
+            last_temp = []
+
+            for row in temp_df:
+                last_line += len(row['consideration']) / 30
+                if last_temp:
+                    last_line += 1
+                last_temp.append(row)
+
+                if last_line > 21:
+                    result_dfs.append(pd.DataFrame(last_temp[:-1]))  # First part
+                    result_dfs.append(pd.DataFrame([last_temp[-1]] + temp_df[len(last_temp):]))  # Remaining part
+                    break
+            else:
+                result_dfs.append(pd.DataFrame(temp_df))  # If no split needed
 
     return result_dfs
-
 def print_page_for_pruduct_result(json_data):
     doc = Document()
-    pandas =  pd.DataFrame(json_data['table']) #get_dum_pd() #
+    pandas =  pd.DataFrame(json_data['table']) #
     dfs = split_dataframe(pandas)
     for page_num in range(len(dfs)):
         create_doc_section(doc, Section.objects.first(),False if page_num == 0 else True)
@@ -446,12 +582,33 @@ def print_product_report():
         new_line = True
     return doc
 
+def print_shop_draw_result():
+    doc = print_product_report()
+    for para in doc.paragraphs:
+        for run in para.runs:
+                if 'product' in run.text:
+                    run.text = run.text.replace('product', 'sDraw')
+    return doc
+
+def print_shop_draw_result():
+    doc = Document()
+    create_doc_section(doc, Section.objects.first(),False )
+    documentFormat = DocumentFormat.objects.filter(name = 'ShopDrawResult').first()
+    for paragraph_data in documentFormat.paragraphs.all():
+        create_doc_paragraph(doc, paragraph_data,True)
+    return doc
+
 def get_doc(json_data):
-    result = print_page_for_pruduct_result(json_data)
-    result_page = fillValue(result,json_data,'result')
-    report = print_product_report()
-    fillValue(report,json_data,'report',result_page = result_page)
-    
+    if json_data['type'] == 'ผลิตภัณฑ์':
+        result = print_page_for_pruduct_result(json_data)
+        result_page = fillValue(result,json_data,'result')
+        report = print_product_report()
+        fillValue(report,json_data,'report',result_page = result_page)  
+    if json_data['type'] == 'SHOP DRAWING':
+        result = print_shop_draw_result()
+        fillValue(result,json_data,'report')
+        report = print_shop_draw_result()
+        fillValue(result,json_data,'report')
     return [report,result]
 
 def convert_numbers_to_thai(string):
@@ -500,7 +657,10 @@ def fillValue(doc,json_data,type,result_page = None):
                             run.text = run.text.replace(value, convert_numbers_to_thai(f"{result_page}"))
                         
                     else:
-                        run.text = run.text.replace(value, convert_numbers_to_thai(json_copy[value]))
+                        if(value == 'departmentCode'):
+                            run.text = run.text.replace(value, json_copy[value])
+                        else:
+                            run.text = run.text.replace(value, convert_numbers_to_thai(json_copy[value]))
     if type == 'result':
         return n_page
     
@@ -513,9 +673,35 @@ def get_month_in_thai(month):
     if 1 <= month <= 12:
         return thai_months[month - 1]
     
+def convert_docx_to_pdf(docx_buffer):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+        temp_docx.write(docx_buffer.read())  # Read the bytes from the BytesIO object
+        temp_docx_path = temp_docx.name  # Save the file path
+    
+    output_dir = 'temp'
+    os.makedirs(output_dir, exist_ok=True)
+    temp_pdf_path = os.path.join(output_dir, os.path.basename(temp_docx_path).replace(".docx", ".pdf"))
+
+    pythoncom.CoInitialize()
+    try:
+        convert(temp_docx_path, temp_pdf_path)
+    finally:
+        pythoncom.CoUninitialize()
+
+    with open(temp_pdf_path, 'rb') as pdf_file:
+        pdf_buffer = BytesIO(pdf_file.read())
+    with open(temp_pdf_path, 'rb') as pdf_file:
+        pdf_buffer = BytesIO(pdf_file.read())
+
+    # Clean up the temporary files
+    os.remove(temp_docx_path)
+    os.remove(temp_pdf_path)
+
+    return pdf_buffer
+
 
 def get_dum_pd():
-    columns = ['รายละเอียดตามข้อกำหนด', 'รายละเอียดที่พิจารณา', 'ผลพิจารณา']
+    columns = ['รายละเอียดตามข้อกำหนด', 'consideration', 'ผลพิจารณา']
     random_sentences = [
         "This is a test sentence.",
         "The quick brown fox jumps over the lazy dog.",
@@ -561,7 +747,7 @@ def get_dum_pd():
 
     data = {
         'รายละเอียดตามข้อกำหนด': list(range(1, len(random_sentences)+1)),
-        'รายละเอียดที่พิจารณา': random_sentences,
+        'consideration': random_sentences,
         'ผลพิจารณา': list(range(1, len(random_sentences)+1))
     }
 

@@ -1,12 +1,13 @@
 from rest_framework import serializers
-from .models import Report , DocumentFormat,ProductReport , Paragraph, Text , Section,Image 
+from .models import Report , DocumentFormat,ProductReport , Paragraph, Text , Section,Image ,ShopDrawReport
 
 
 
 class ReportSerializer(serializers.ModelSerializer):
+    create_by = serializers.CharField(source='create_by.username', read_only=True)
     class Meta:
         model = Report
-        fields = ['id', 'create_date', 'type', 'signer','name']  # Specify the fields you want to include
+        fields = ['id', 'create_date', 'type', 'signer','name','create_by']  # Specify the fields you want to include
         read_only_fields = ['create_by']
 
 
@@ -15,9 +16,16 @@ class ProductReportSerializer(serializers.ModelSerializer):
         model = ProductReport
         fields = ReportSerializer.Meta.fields + [
             'product', 'document', 'priority', 'document_number', 'document_date', 
-            'company', 'buildingType', 'buildingStructure', 'structureID', 
+            'company', 'buildingType', 'buildingStruct', 'structureID', 
             'buildingPlace', 'contractID', 'contractDate', 'products', 'departmentCode' , 'table'
         ]
+class ShopDrawReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopDrawReport
+        fields = ReportSerializer.Meta.fields + ["sDraw", "sDraws", "document", "priority", "document_number",  
+          "document_date", "company", "buildingType", "buildingStruct",  
+          "structureID", "buildingPlace", "contractID", "contractDate",  
+          "departmentCode", "reName", "reLevel", "reNum", "floor"]
         
 class TextSerializer(serializers.ModelSerializer):
     class Meta:

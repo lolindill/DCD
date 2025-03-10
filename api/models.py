@@ -18,12 +18,12 @@ class Report(models.Model):
 class ProductReport(Report):   
     product = models.CharField(max_length=255)
     document = models.CharField(max_length=255)
-    priority = models.CharField(max_length=255)
+    priority = models.CharField(max_length=255,blank=True)
     document_number = models.CharField(max_length=255)
     document_date = models.CharField(max_length=255)
     company = models.CharField(max_length=255)
     buildingType = models.CharField(max_length=255)
-    buildingStructure = models.CharField(max_length=255)
+    buildingStruct = models.CharField(max_length=255)
     structureID = models.CharField(max_length=255)
     buildingPlace = models.CharField(max_length=255)
     contractID = models.CharField(max_length=255)
@@ -32,10 +32,32 @@ class ProductReport(Report):
     departmentCode = models.CharField(max_length=255)
     table = models.JSONField(default=dict,null=True)
 
+class ShopDrawReport(Report):   
+    sDraw = models.CharField(max_length=255)
+    sDraws = models.CharField(max_length=255)
+    document = models.CharField(max_length=255)
+    priority = models.CharField(max_length=255,blank=True)
+    document_number = models.CharField(max_length=255)
+    document_date = models.CharField(max_length=255)
+    company = models.CharField(max_length=255)
+    buildingType = models.CharField(max_length=255)
+    buildingStruct = models.CharField(max_length=255)
+    structureID = models.CharField(max_length=255)
+    buildingPlace = models.CharField(max_length=255)
+    contractID = models.CharField(max_length=255)
+    contractDate = models.CharField(max_length=255)
+    departmentCode = models.CharField(max_length=255)
+    reName = models.CharField(max_length=255)
+    reLevel = models.CharField(max_length=255)
+    reNum = models.CharField(max_length=255)
+    floor = models.CharField(max_length=255)
+
+
 class DocumentFormat(models.Model):
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
     def __str__(self):
-        return self.name
+        return {'id':self.id , 'name':self.name}
 
 class Paragraph(models.Model):
     document_format = models.ForeignKey(DocumentFormat, on_delete=models.CASCADE, related_name="paragraphs")
