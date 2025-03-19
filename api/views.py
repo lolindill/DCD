@@ -616,7 +616,7 @@ def convert_numbers_to_thai(string):
         '0': '๐',  # Thai digit zero
         '1': '๑',  # Thai digit one
         '2': '๒',  # Thai digit two
-        '3': '๓',  # Thai digit three
+        '3': '๓',  # Thai digit three อ  
         '4': '๔',  # Thai digit four
         '5': '๕',  # Thai digit five
         '6': '๖',  # Thai digit six
