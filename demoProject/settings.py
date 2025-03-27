@@ -83,7 +83,17 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
+'''
+DATABASES = {
+    'default': {
+        'ENGINE': 'djongo',
+        'NAME': 'my_db',  # MongoDB database name
+        'CLIENT': {
+            'host': 'mongodb://localhost:27017/',  # MongoDB connection string
+        }
+    }
+}
+'''
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

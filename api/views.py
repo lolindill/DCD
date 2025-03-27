@@ -66,17 +66,21 @@ def gen_download_report(json_data):
         doc1_buffer = BytesIO()
         doc1.save(doc1_buffer)
         doc1_buffer.seek(0)
-        zip_file.writestr('report1.docx', doc1_buffer.getvalue())    
+        zip_file.writestr('บันทึกข้อความ.docx', doc1_buffer.getvalue())    
+        '''
         pdf1_buffer = convert_docx_to_pdf(doc1_buffer)
-        zip_file.writestr('report1.pdf', pdf1_buffer.getvalue())   
+        zip_file.writestr('บันทึกข้อความ.pdf', pdf1_buffer.getvalue())  
+        ''' 
         doc2_buffer = BytesIO()
         doc2.save(doc2_buffer)
         doc2_buffer.seek(0)
-        zip_file.writestr('doc2.doc', doc2_buffer.getvalue())
+        zip_file.writestr('ผลการพิจารณา.doc', doc2_buffer.getvalue())
+        '''
         pdf2_buffer = convert_docx_to_pdf(doc2_buffer)
-        zip_file.writestr('report2.pdf', pdf2_buffer.getvalue()) 
+        zip_file.writestr('ผลการพิจารณา.pdf', pdf2_buffer.getvalue()) 
+        '''
         
-    zip_buffer.seek(0)
+        zip_buffer.seek(0)
     return zip_buffer
     
 @api_view(['POST'])
@@ -690,12 +694,9 @@ def convert_docx_to_pdf(docx_buffer):
 
     with open(temp_pdf_path, 'rb') as pdf_file:
         pdf_buffer = BytesIO(pdf_file.read())
-    with open(temp_pdf_path, 'rb') as pdf_file:
-        pdf_buffer = BytesIO(pdf_file.read())
-
-    # Clean up the temporary files
     os.remove(temp_docx_path)
     os.remove(temp_pdf_path)
+    
 
     return pdf_buffer
 
