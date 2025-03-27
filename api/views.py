@@ -70,7 +70,7 @@ def gen_download_report(json_data):
         '''
         pdf1_buffer = convert_docx_to_pdf(doc1_buffer)
         zip_file.writestr('บันทึกข้อความ.pdf', pdf1_buffer.getvalue())  
-        ''' 
+        '''
         doc2_buffer = BytesIO()
         doc2.save(doc2_buffer)
         doc2_buffer.seek(0)
