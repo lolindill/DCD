@@ -80,7 +80,7 @@ def gen_download_report(json_data):
         zip_file.writestr('ผลการพิจารณา.pdf', pdf2_buffer.getvalue()) 
         '''
         
-        zip_buffer.seek(0)
+    zip_buffer.seek(0)
     return zip_buffer
     
 @api_view(['POST'])
