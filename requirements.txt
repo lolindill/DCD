@@ -8,5 +8,5 @@ pytz==2024.1
 pandoc==2.4
 docx2pdf==0.1.8
 pywin32
-sqlparse==0.2.4
+
 
